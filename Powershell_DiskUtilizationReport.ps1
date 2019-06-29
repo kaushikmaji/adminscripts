@@ -1,5 +1,5 @@
 ﻿########################################################################################################
-#Purpose: Script to obtain the disk space on remote servers
+#Purpose: Script to obtain the disk space utilization on remote servers & failover clusters
 #Pre-Reqs: 
 #  WMI should be enabled on all target servers
 #  WMI ports to all target servers, should be opened from the location where the script is run  
