@@ -22,9 +22,11 @@ e.g. Powershell_Powershell_CheckClusterResourceHealth.ps1 has below pre-reqs
 Please run the required script as per guidelines provided atop the executable lines in each script file.
 
  - Powershell_CheckClusterResourceHealth.ps1
-   The script generates an excel report showing health status of resources in a windows cluster
+	> The script generates an excel report showing health status of resources in a windows cluster
  - Powershell_DiskUtilizationReport.ps1
-   Script to obtain the disk space utilization on remote servers & failover clusters
+	> Script to obtain the disk space utilization on remote servers & failover clusters
+ - Powershell_GetAllSystemInfo.ps1
+	> This helps extract OS, disk, disk partition, free space on disk, CPU/RAM, Fileshares, BIOS and other information for a list of servers.
 
 
 ## Contributing
@@ -37,7 +39,7 @@ For the versions available, see the [tags on this repository](https://github.com
 
 ## Authors
 
-* **Kaushik Maji** - *Initial work* - [PurpleBooth](https://github.com/kaushikmaji)
+* **Kaushik Maji** - *Initial work* - [kaushikmaji](https://github.com/kaushikmaji)
 
 See also the list of [contributors](https://github.com/your/project/contributors) who participated in this project.
 
