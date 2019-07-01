@@ -12,33 +12,66 @@ $cred= get-credential
 $Computers = get-content "$location\computers.txt"
 $clusterArray = New-Object System.Collections.ArrayList
 $clusterHashTable = New-Object System.Collections.Hashtable
-#$masterfilename = "${location}\${get-date -f yyyy-MM-dd}_All_Server_Details.csv"
+function export-tasks ($computer,$cred,$location){
+    $cred.Username
+    $domain=""
+    $user=""
+    If($cred.Username -match "\\") {
+        $userarr=$cred.Username.Split("\\")
+        $user=$userarr[1]
+        $domain=$userarr[0]
+    } Else {
+        $user=$cred.Username
+        $domain=$env:USERDOMAIN
+    }
+    #$domain
+    #$user
 
+    $Ptr = [System.Runtime.InteropServices.Marshal]::SecureStringToCoTaskMemUnicode($cred.Password)
+    $result = [System.Runtime.InteropServices.Marshal]::PtrToStringUni($Ptr)
+    [System.Runtime.InteropServices.Marshal]::ZeroFreeCoTaskMemUnicode($Ptr)
+    #$result
+    
+    $sch = New-Object -ComObject("Schedule.Service")
+    $sch.Connect($computer,$user,$domain,$result)
+    $tasks = $sch.GetFolder("\").GetTasks(0)
+
+    $outfile_temp = "${location}\${Computer}\Task_{0}_${computer}.xml"
+
+    $tasks | %{
+	    $xml = $_.Xml
+	    $task_name = $_.Name
+	    $outfile = $outfile_temp -f $task_name
+	    $xml | Out-File $outfile
+    }
+
+}
 
 foreach ($Computer in $Computers) 
 {
+    New-Item -Path "${location}\${Computer}" -ItemType "directory"
     Write-Output "Processing computer: $Computer"
-    $ErrorLogMain = New-Item -Path "${location}\ErrorMainBlock_${Computer}.txt" -ItemType "file"
+    $ErrorLogMain = New-Item -Path "${location}\${Computer}\ErrorMainBlock_${Computer}.txt" -ItemType "file"
     try{
     
     ##Get disks attached to the server
-    gwmi -query "Select * from Win32_DiskDrive" -ComputerName $Computer -Credential $cred | Select-Object *|export-csv -path $location\diskDrive_${Computer}.csv -Force
+    gwmi -query "Select * from Win32_DiskDrive" -ComputerName $Computer -Credential $cred | Select-Object *|export-csv -path ${location}\${Computer}\diskDrive_${Computer}.csv -Force
     ##Get disk partitions for the server
-    gwmi -query "Select * from Win32_DiskPartition" -ComputerName $Computer -Credential $cred | Select-Object *|export-csv -path $location\diskPartition_${Computer}.csv -Force
+    gwmi -query "Select * from Win32_DiskPartition" -ComputerName $Computer -Credential $cred | Select-Object *|export-csv -path ${location}\${Computer}\diskPartition_${Computer}.csv -Force
     ##Get OS details for the server
-    gwmi -query "Select * from  Win32_OperatingSystem" -ComputerName $Computer -Credential $cred | Select-Object *|export-csv -path $location\OSDetails_${Computer}.csv -Force
+    gwmi -query "Select * from  Win32_OperatingSystem" -ComputerName $Computer -Credential $cred | Select-Object *|export-csv -path ${location}\${Computer}\OSDetails_${Computer}.csv -Force
     ##Get all computer details
-    gwmi -Class Win32_ComputerSystem -computername $Computer -Credential $cred| Select-Object *|export-csv -path $location\CompDetails_${Computer}.csv -Force
+    gwmi -Class Win32_ComputerSystem -computername $Computer -Credential $cred| Select-Object *|export-csv -path ${location}\${Computer}\CompDetails_${Computer}.csv -Force
     ##Get Bios details
-    gwmi Win32_BIOS -computername $Computer -Credential $cred| Select-Object *|export-csv -path $location\BIOS_${Computer}.csv -Force
+    gwmi Win32_BIOS -computername $Computer -Credential $cred| Select-Object *|export-csv -path ${location}\${Computer}\BIOS_${Computer}.csv -Force
     ##Get NIC details
-    gwmi Win32_NetworkAdapterConfiguration -computername $Computer -Credential $cred -filter ipenabled="true" | Select-Object *|export-csv -path $location\NICs_${Computer}.csv -Force
+    gwmi Win32_NetworkAdapterConfiguration -computername $Computer -Credential $cred -filter ipenabled="true" | Select-Object *|export-csv -path ${location}\${Computer}\NICs_${Computer}.csv -Force
     ##Get all windows shares
-    gwmi Win32_share -computername $Computer -Credential $cred| Select-Object *|export-csv -path $location\Fileshares_${Computer}.csv -Force
+    gwmi Win32_share -computername $Computer -Credential $cred| Select-Object *|export-csv -path ${location}\${Computer}\Fileshares_${Computer}.csv -Force
     ##Get disk information
     $Disks = Get-wmiobject  Win32_LogicalDisk -computername $Computer -filter "DriveType= 3" -Credential $cred    
-    New-Item -Path "${location}\LogicalDiskInfo_${Computer}.csv" -ItemType "file"
-    "Machine Name,Drive,Cluster/Local,Total size (GB),Free Space (GB),Free Space (%),Name,DriveType"|Add-Content -Path "${location}\LogicalDiskInfo_${Computer}.csv"
+    New-Item -Path "${location}\${Computer}\LogicalDiskInfo_${Computer}.csv" -ItemType "file"
+    "Machine Name,Drive,Cluster/Local,Total size (GB),Free Space (GB),Free Space (%),Name,DriveType"|Add-Content -Path "${location}\${Computer}\LogicalDiskInfo_${Computer}.csv"
 
 
     if($?)
@@ -46,7 +79,7 @@ foreach ($Computer in $Computers)
 
     Write-Output "Processed WMI Queries on computer: $Computer"
 
-    $ErrorLog = New-Item -Path "${location}\Error_${Computer}.txt" -ItemType "file"
+    $ErrorLog = New-Item -Path "${location}\${Computer}\Error_${Computer}.txt" -ItemType "file"
     
     ##Get Cluster details 
     try{
@@ -58,8 +91,8 @@ foreach ($Computer in $Computers)
                     Write-Output "Processing Cluster on computer: $Computer"
                     
                     ##Get cluster resources list
-                    New-Item -Path "${location}\Cluster_${Computer}.csv" -ItemType "file"
-                    "Computer,ClusterName,ResourceName,OwnerNode,ResourceType,ClusterSharedVolume"|Add-Content -Path "${location}\Cluster_${Computer}.csv"
+                    New-Item -Path "${location}\${Computer}\Cluster_${Computer}.csv" -ItemType "file"
+                    "Computer,ClusterName,ResourceName,OwnerNode,ResourceType,ClusterSharedVolume"|Add-Content -Path "${location}\${Computer}\Cluster_${Computer}.csv"
                     
                     
                     $clusterDrives = New-Object System.Collections.ArrayList
@@ -73,7 +106,7 @@ foreach ($Computer in $Computers)
                         foreach ($objresource in $ClusterResources) 
                         { 
                             
-                            $Computer+","+$clustername.Name.ToUpper()+","+$objresource.Name+","+$objresource.OwnerNode+","+$objresource.Type+","+$objresource.IsClusterSharedVolume|Add-Content -Path "${location}\Cluster_${Computer}.csv"
+                            $Computer+","+$clustername.Name.ToUpper()+","+$objresource.Name+","+$objresource.OwnerNode+","+$objresource.Type+","+$objresource.IsClusterSharedVolume|Add-Content -Path "${location}\${Computer}\Cluster_${Computer}.csv"
     
                         }
 
@@ -82,7 +115,7 @@ foreach ($Computer in $Computers)
                         foreach ($objdisk in $ClusterDisks) 
                         { 
                             $clusterDrives.Add($objDisk.Path)                
-                            $clustername.Name.ToUpper() +"," + $objdisk.Path + "," + "Cluster" + "," + "{0:N0}" -f ($objdisk.TotalSize/1024) + "," + "{0:N0}" -f ($objdisk.FreeSpace/1024) + "," + "{0:P0}" -f ([double]$objdisk.FreeSpace/[double]$objdisk.TotalSize) + "," + $objdisk.Volumelabel + "," + "3" |Add-Content -Path "${location}\LogicalDiskInfo_${Computer}.csv"
+                            $clustername.Name.ToUpper() +"," + $objdisk.Path + "," + "Cluster" + "," + "{0:N0}" -f ($objdisk.TotalSize/1024) + "," + "{0:N0}" -f ($objdisk.FreeSpace/1024) + "," + "{0:P0}" -f ([double]$objdisk.FreeSpace/[double]$objdisk.TotalSize) + "," + $objdisk.Volumelabel + "," + "3" |Add-Content -Path "${location}\${Computer}\LogicalDiskInfo_${Computer}.csv"
    
                         }
                         $clusterHashTable.Add($clustername.name,$clusterDrives)
@@ -97,7 +130,7 @@ foreach ($Computer in $Computers)
                         if($clusterHashTable[$clustername.name] -notcontains $objDisk.DeviceID)
                         {
                 
-                           $Computer.ToUpper() +"," + $objdisk.DeviceID + "," + "Local" + "," + "{0:N0}" -f ($objdisk.Size/1GB) + "," + "{0:N0}" -f ($objdisk.FreeSpace/1GB) + "," + "{0:P0}" -f ([double]$objdisk.FreeSpace/[double]$objdisk.Size) + "," + $objdisk.Volumename + "," + $objdisk.DriveType |Add-Content -Path "${location}\LogicalDiskInfo_${Computer}.csv"
+                           $Computer.ToUpper() +"," + $objdisk.DeviceID + "," + "Local" + "," + "{0:N0}" -f ($objdisk.Size/1GB) + "," + "{0:N0}" -f ($objdisk.FreeSpace/1GB) + "," + "{0:P0}" -f ([double]$objdisk.FreeSpace/[double]$objdisk.Size) + "," + $objdisk.Volumename + "," + $objdisk.DriveType |Add-Content -Path "${location}\${Computer}\LogicalDiskInfo_${Computer}.csv"
 
                         } 
                     }
@@ -111,7 +144,7 @@ foreach ($Computer in $Computers)
             ##Logical disk info for computers not having clusters
             foreach ($objdisk in $Disks) 
             { 
-                $Computer.ToUpper() +"," + $objdisk.DeviceID + "," + "Local" + "," + "{0:N0}" -f ($objdisk.Size/1GB) + "," + "{0:N0}" -f ($objdisk.FreeSpace/1GB) + "," + "{0:P0}" -f ([double]$objdisk.FreeSpace/[double]$objdisk.Size) + "," + $objdisk.Volumename + "," + $objdisk.DriveType |Add-Content -Path "${location}\LogicalDiskInfo_${Computer}.csv"
+                $Computer.ToUpper() +"," + $objdisk.DeviceID + "," + "Local" + "," + "{0:N0}" -f ($objdisk.Size/1GB) + "," + "{0:N0}" -f ($objdisk.FreeSpace/1GB) + "," + "{0:P0}" -f ([double]$objdisk.FreeSpace/[double]$objdisk.Size) + "," + $objdisk.Volumename + "," + $objdisk.DriveType |Add-Content -Path "${location}\${Computer}\LogicalDiskInfo_${Computer}.csv"
 
             }    
         }              
@@ -120,7 +153,7 @@ foreach ($Computer in $Computers)
 	        Write-Output "$ErrorMessage : $FailedItem"
             $ErrorMessage = $_.Exception.Message
 	        $FailedItem = $_.Exception.ItemName
-            $_|Add-Content -Path "${location}\Error_${Computer}.txt"
+            $_|Add-Content -Path "${location}\${Computer}\Error_${Computer}.txt"
 	    }
 
      }else
@@ -128,10 +161,13 @@ foreach ($Computer in $Computers)
             throw $error[0].Exception
         }
 
+
+    export-tasks $Computer $cred $location
+
     }Catch{
 	        Write-Output "$ErrorMessagemain : $FailedItemmain"
             $ErrorMessagemain = $_.Exception.Message
 	        $FailedItemmain = $_.Exception.ItemName
-            $_|Add-Content -Path "${location}\ErrorMainBlock_${Computer}.txt"
+            $_|Add-Content -Path "${location}\${Computer}\ErrorMainBlock_${Computer}.txt"
 	    }
 }
